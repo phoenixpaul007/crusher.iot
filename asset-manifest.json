@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/crusher.iot/static/css/main.0695658b.css",
+    "main.js": "/crusher.iot/static/js/main.4ea2c5ed.js",
+    "index.html": "/crusher.iot/index.html",
+    "main.0695658b.css.map": "/crusher.iot/static/css/main.0695658b.css.map",
+    "main.4ea2c5ed.js.map": "/crusher.iot/static/js/main.4ea2c5ed.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.0695658b.css",
+    "static/js/main.4ea2c5ed.js"
+  ]
+}
