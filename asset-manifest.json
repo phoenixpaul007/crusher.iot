@@ -1,13 +1,15 @@
 {
   "files": {
-    "main.css": "/crusher.iot/static/css/main.0695658b.css",
-    "main.js": "/crusher.iot/static/js/main.6cc60a4a.js",
+    "main.css": "/crusher.iot/static/css/main.db3c0429.css",
+    "main.js": "/crusher.iot/static/js/main.247ae3b3.js",
+    "static/js/888.5182b4d1.chunk.js": "/crusher.iot/static/js/888.5182b4d1.chunk.js",
     "index.html": "/crusher.iot/index.html",
-    "main.0695658b.css.map": "/crusher.iot/static/css/main.0695658b.css.map",
-    "main.6cc60a4a.js.map": "/crusher.iot/static/js/main.6cc60a4a.js.map"
+    "main.db3c0429.css.map": "/crusher.iot/static/css/main.db3c0429.css.map",
+    "main.247ae3b3.js.map": "/crusher.iot/static/js/main.247ae3b3.js.map",
+    "888.5182b4d1.chunk.js.map": "/crusher.iot/static/js/888.5182b4d1.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.0695658b.css",
-    "static/js/main.6cc60a4a.js"
+    "static/css/main.db3c0429.css",
+    "static/js/main.247ae3b3.js"
   ]
 }
