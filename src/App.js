@@ -856,7 +856,6 @@ function App() {
         const watts = validData.map(d => d.watts);
         const powerFactors = validData.map(d => d.powerFactor);
         const frequency = validData.map(d => d.frequency);
-        const runningData = allData.filter(d => d.current > 0);
 
         setStats({
             avgVoltage: voltages.reduce((a, b) => a + b, 0) / voltages.length,
