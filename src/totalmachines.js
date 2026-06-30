@@ -30,6 +30,8 @@ const getCrusherList = useCallback(async () => {
             setSelectedMachine(result.data[0]);
             checkCurrentMachineStatus();
             fetchLiveData(result.data[0]);
+            // Remove the error message or change to success message
+            // setError("Please select a date range and click 'Load Data'."); // This is confusing - it's not an error
         } else {
             setError("No machines found");
         }
@@ -51,8 +53,13 @@ const getCrusherList = useCallback(async () => {
                     </Typography>
                     <Box display="flex" alignItems="center" gap={3} flexWrap="wrap" mt={1}>
                         {/* Customer - Using PersonIcon with Avatar */}
-                        <Box display="flex" alignItems="center" gap={1}><PersonIcon sx={{ color: '#00b894', fontSize: 18 }} />
-                            <Typography variant="body2" sx={{ color: '#b0b0b0' }}>Customer: {selectedMachine?.customer || 'N/A'}</Typography>
+                        <Box display="flex" alignItems="center" gap={1}>
+                            <Avatar sx={{ width: 24, height: 24, bgcolor: '#00b894' }}>
+                                <PersonIcon sx={{ fontSize: 16 }} />
+                            </Avatar>
+                            <Typography variant="body2" sx={{ color: '#b0b0b0' }}>
+                                Customer: {selectedMachine?.customer || 'N/A'}
+                            </Typography>
                         </Box>
 
                         {/* Location - Using LocationOnIcon with Avatar */}
@@ -101,4 +108,3 @@ const getCrusherList = useCallback(async () => {
             )}
         </CardContent>
     </Card>
-)}
