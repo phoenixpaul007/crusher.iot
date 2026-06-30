@@ -1,17 +1,16 @@
-import React from 'react';
+﻿import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { ThemeProvider } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-import App from './App';
-import theme from './theme';
 import './index.css';
+import App from './App';
+import reportWebVitals from './reportWebVitals';
 
+// ✅ Correct way for React 18+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <App />
-    </ThemeProvider>
-  </React.StrictMode>
+    <React.StrictMode>
+        <App />
+    </React.StrictMode>
 );
+
+// If you want to measure performance
+reportWebVitals();
