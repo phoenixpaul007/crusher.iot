@@ -856,7 +856,6 @@ function App() {
         const watts = validData.map(d => d.watts);
         const powerFactors = validData.map(d => d.powerFactor);
         const frequency = validData.map(d => d.frequency);
-        const runningCurrents = runningData.map(d => d.current);
         const runningData = allData.filter(d => d.current > 0);
 
         setStats({
@@ -872,7 +871,7 @@ function App() {
             maxVoltage: Math.max(...voltages),
             minVoltage: Math.min(...voltages),
             maxCurrent: Math.max(...currents),
-            minCurrent: runningCurrents.length > 0 ? Math.min(...runningCurrents) : 0,
+            minCurrent: Math.min(...currents),
             minFreq: Math.min(...frequency),
             maxFreq: Math.max(...frequency),
             totalRunningHours: totalRunningHours,
