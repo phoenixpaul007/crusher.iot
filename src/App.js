@@ -339,13 +339,15 @@ function App() {
         }
     }, []);
 
-    // Fetch live data for a machine
+    // ✅ FIXED: Single fetchLiveData function with 15-minute window
     const fetchLiveData = useCallback(async (machine) => {
         if (!machine) return;
 
         try {
             const now = new Date();
-            const fiveMinutesAgo = new Date(now.getTime() - 1 * 60 * 1000);
+            // Fetch last 15 minutes to ensure data is available
+            const fetchWindowMinutes = 15;
+            const fetchStartTime = new Date(now.getTime() - fetchWindowMinutes * 60 * 1000);
 
             const formatDate = (date) => {
                 const year = date.getFullYear();
@@ -361,7 +363,7 @@ function App() {
                 json_type: "Crusher Data",
                 plant_type: machine?.plant_type,
                 ip: machine?.ip,
-                st_date: formatDate(fiveMinutesAgo),
+                st_date: formatDate(fetchStartTime),
                 ed_date: formatDate(now),
                 receied_on: selectedMachine?.receied_on || '',
             };
@@ -378,8 +380,15 @@ function App() {
             const result = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
             const readingsData = result.readings || result.data || [];
 
-            if (readingsData.length > 0) {
-                const latestReading = readingsData[0];
+            // Sort readings by timestamp to get the latest
+            const sortedReadings = [...readingsData].sort((a, b) => {
+                const dateA = new Date(a["timestamp "] || a.timestamp);
+                const dateB = new Date(b["timestamp "] || b.timestamp);
+                return dateB - dateA; // Newest first
+            });
+
+            if (sortedReadings.length > 0) {
+                const latestReading = sortedReadings[0];
                 const data = latestReading["data "] || latestReading.data || [];
 
                 setLiveData({
@@ -394,11 +403,30 @@ function App() {
                     },
                     lastUpdate: latestReading["timestamp "] || latestReading.timestamp
                 });
+
+                // ✅ Update machine status based on latest reading
+                const lastTime = new Date(latestReading["timestamp "] || latestReading.timestamp);
+                if (!isNaN(lastTime.getTime())) {
+                    const diffMinutes = (Date.now() - lastTime.getTime()) / 60000;
+                    setMachineStatus(diffMinutes <= 10 ? "active" : "inactive");
+                }
+            } else {
+                // No data found - check if we have a previous reading
+                if (liveData.lastUpdate) {
+                    const lastTime = new Date(liveData.lastUpdate);
+                    if (!isNaN(lastTime.getTime())) {
+                        const diffMinutes = (Date.now() - lastTime.getTime()) / 60000;
+                        setMachineStatus(diffMinutes <= 10 ? "active" : "inactive");
+                    }
+                } else {
+                    setMachineStatus("inactive");
+                }
             }
         } catch (err) {
             console.error("❌ Error fetching live data:", err);
+            // Don't change status on error - keep previous status
         }
-    }, [getValue]);
+    }, [getValue, selectedMachine, liveData.lastUpdate]);
 
     // Apply filters and sort
     const applyFiltersAndSort = useCallback(() => {
@@ -642,8 +670,8 @@ function App() {
 
         // If machine is still running at the end of data
         if (isRunning && startTime) {
-            const lastTimestamp = parseTimestamp(sortedReadings[sortedReadings.length - 1]["timestamp "] || 
-                                                sortedReadings[sortedReadings.length - 1].timestamp);
+            const lastTimestamp = parseTimestamp(sortedReadings[sortedReadings.length - 1]["timestamp "] ||
+                sortedReadings[sortedReadings.length - 1].timestamp);
             if (lastTimestamp) {
                 const runningSeconds = (lastTimestamp - startTime) / 1000;
                 totalRunningSeconds += runningSeconds;
@@ -656,7 +684,7 @@ function App() {
         return totalHours;
     }, [parseTimestamp, getValue]);
 
-    // Check machine status from fetched data
+    // ✅ FIXED: Check machine status from fetched data
     const checkMachineStatus = useCallback((readingData) => {
         if (!readingData || !readingData.length) {
             setMachineStatus("inactive");
@@ -682,7 +710,7 @@ function App() {
         setMachineStatus(diffMinutes <= 10 ? "active" : "inactive");
     }, [parseTimestamp]);
 
-    // Check current machine status
+    // ✅ FIXED: Check current machine status
     const checkCurrentMachineStatus = useCallback(async () => {
         if (!selectedMachine) {
             setMachineStatus("inactive");
@@ -691,7 +719,8 @@ function App() {
 
         try {
             const now = new Date();
-            //const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+            const fetchWindowMinutes = 15;
+            const fetchStartTime = new Date(now.getTime() - fetchWindowMinutes * 60 * 1000);
 
             const formatDate = (date) => {
                 const year = date.getFullYear();
@@ -707,8 +736,9 @@ function App() {
                 json_type: "Crusher Data",
                 plant_type: selectedMachine?.plant_type,
                 ip: selectedMachine?.ip,
-                st_date: formatDate(now),
+                st_date: formatDate(fetchStartTime),
                 ed_date: formatDate(now),
+                receied_on: selectedMachine?.receied_on || '',
             };
 
             const response = await axios.post(
@@ -724,11 +754,27 @@ function App() {
             const readings = result.readings || result.data || [];
 
             if (!readings || readings.length === 0) {
-                setMachineStatus("inactive");
+                // Check if we have a previous reading
+                if (liveData.lastUpdate) {
+                    const lastTime = new Date(liveData.lastUpdate);
+                    if (!isNaN(lastTime.getTime())) {
+                        const diffMinutes = (Date.now() - lastTime.getTime()) / 60000;
+                        setMachineStatus(diffMinutes <= 10 ? "active" : "inactive");
+                    }
+                } else {
+                    setMachineStatus("inactive");
+                }
                 return;
             }
 
-            const latest = readings[0];
+            // Sort to get the latest
+            const sortedReadings = [...readings].sort((a, b) => {
+                const dateA = new Date(a["timestamp "] || a.timestamp);
+                const dateB = new Date(b["timestamp "] || b.timestamp);
+                return dateB - dateA;
+            });
+
+            const latest = sortedReadings[0];
             const ts = parseTimestamp(latest?.["timestamp "] || latest?.timestamp);
 
             if (!ts) {
@@ -740,8 +786,9 @@ function App() {
             setMachineStatus(diffMinutes <= 10 ? "active" : "inactive");
         } catch (err) {
             console.error("❌ Error checking machine status:", err);
+            // Don't change status on error
         }
-    }, [selectedMachine, parseTimestamp]);
+    }, [selectedMachine, parseTimestamp, liveData.lastUpdate]);
 
     // Load data handler
     const handleLoadData = useCallback(async () => {
@@ -811,22 +858,22 @@ function App() {
                 minFreq: 0,
                 maxFreq: 0,
                 totalRunningHours: 0,
-                totalMinutes:0,
+                totalMinutes: 0,
             });
             return;
         }
 
         const validData = filteredReadings.map(r => ({
-            
-                voltage: parseFloat(getValue(r["data "] || r.data, "VLL_Average")) || 0,
-                current: parseFloat(getValue(r["data "] || r.data, "Current_Total")) || 0,
-                currentR: parseFloat(getValue(r["data "] || r.data, "Current_R_Phase")) || 0,
-                currentY: parseFloat(getValue(r["data "] || r.data, "Current_Y_Phase")) || 0,
-                currentB: parseFloat(getValue(r["data "] || r.data, "Current_B_Phase")) || 0,
-                powerFactor: parseFloat(getValue(r["data "] || r.data, "True_PF")) || 0,
-                frequency: parseFloat(getValue(r["data "] || r.data, "Frequency")) || 0,
-                watts: parseFloat(getValue(r["data "] || r.data, "Watts_Total")) || 0,
-            }))
+
+            voltage: parseFloat(getValue(r["data "] || r.data, "VLL_Average")) || 0,
+            current: parseFloat(getValue(r["data "] || r.data, "Current_Total")) || 0,
+            currentR: parseFloat(getValue(r["data "] || r.data, "Current_R_Phase")) || 0,
+            currentY: parseFloat(getValue(r["data "] || r.data, "Current_Y_Phase")) || 0,
+            currentB: parseFloat(getValue(r["data "] || r.data, "Current_B_Phase")) || 0,
+            powerFactor: parseFloat(getValue(r["data "] || r.data, "True_PF")) || 0,
+            frequency: parseFloat(getValue(r["data "] || r.data, "Frequency")) || 0,
+            watts: parseFloat(getValue(r["data "] || r.data, "Watts_Total")) || 0,
+        }))
             .filter(d => d.voltage > 0);
 
         if (!validData.length) {
@@ -862,7 +909,7 @@ function App() {
             avgCurrent: currents.reduce((a, b) => a + b, 0) / currents.length,
             avgPowerfactor: powerFactors.reduce((a, b) => a + b, 0) / powerFactors.length,
             avgFrequency: validData.reduce((a, b) => a + b.frequency, 0) / validData.length,
-            avgWatts: watts.reduce((a, b) => a + b, 0 ) / (validData.length * 1000),//(Kw)
+            avgWatts: watts.reduce((a, b) => a + b, 0) / (validData.length * 1000),//(Kw)
             maxWatts: Math.max(...watts) / 1000,//(Kw)
             minWatts: Math.min(...watts) / 1000,//(Kw)
             maxPf: Math.max(...powerFactors),
@@ -1090,7 +1137,7 @@ function App() {
                             )}
                         </Box>
                         <Box display="flex" alignItems="center" gap={2}>
-                            
+
                             <Chip
                                 icon={<CircleIcon sx={{ color: machineStatus === 'active' ? '#00b894' : '#ff6b6b', fontSize: 12 }} />}
                                 label={machineStatus === 'active' ? 'Online' : 'Offline'}
@@ -1111,10 +1158,10 @@ function App() {
                                     <Box>
                                         <Typography variant="h5" sx={{ color: '#00b894' }}>{selectedMachine.plant_type}</Typography>
                                         <Box display="flex" alignItems="center" gap={3} flexWrap="wrap" mt={1}>
-                                            <Typography variant="body2" sx={{ color: '#b0b0b0' }}><PersonIcon sx={{ color: '#ffffff',fontSize: 24 }} />Customer: {selectedMachine?.customer || 'N/A'}</Typography>
+                                            <Typography variant="body2" sx={{ color: '#b0b0b0' }}><PersonIcon sx={{ color: '#ffffff', fontSize: 24 }} />Customer: {selectedMachine?.customer || 'N/A'}</Typography>
                                             <Typography variant="body2" sx={{ color: '#b0b0b0' }}><LocationOnIcon sx={{ color: '#ffffff', fontSize: 24 }} />M/c Location: {selectedMachine?.site || 'N/A'}</Typography>
                                             <Typography hidden variant="body2" sx={{ color: '#b0b0b0' }}><WifiIcon sx={{ color: '#ffffff', fontSize: 24 }} />IP: {selectedMachine?.ip || 'N/A'}</Typography>
-                                            <Typography variant="body2" sx={{ color: '#b0b0b0' }}><AccessTimeIcon sx={{ color: '#ffffff', fontSize: 24 }} /> Last Received Readings: {selectedMachine.receied_on ? new Date(selectedMachine.receied_on).toLocaleString() : 'N/A'}</Typography>
+                                            <Typography variant="body2" sx={{ color: '#b0b0b0' }}><AccessTimeFilledIcon sx={{ color: '#ffffff', fontSize: 24 }} /> Last Received Readings: {selectedMachine.receied_on ? new Date(selectedMachine.receied_on).toLocaleString() : 'N/A'}</Typography>
                                         </Box>
                                     </Box>
                                 </Box>
@@ -1165,20 +1212,20 @@ function App() {
                             <Grid container spacing={2}>
                                 <Grid item xs={6} sm={3}>
                                     <LiveStatusCard
-                                        title="Current"
-                                        value={liveData.currentTotal.toFixed(2)}
-                                        unit="A"
-                                        icon={FlashOnIcon}
-                                        color="#a29bfe"
-                                    />
-                                </Grid>
-                                <Grid item xs={6} sm={3}>
-                                    <LiveStatusCard
                                         title="Voltage"
                                         value={liveData.voltageLLAvg.toFixed(1)}
                                         unit="V"
                                         icon={ElectricBoltIcon}
                                         color="#74b9ff"
+                                    />
+                                </Grid>
+                                <Grid item xs={6} sm={3}>
+                                    <LiveStatusCard
+                                        title="Current"
+                                        value={liveData.currentTotal.toFixed(2)}
+                                        unit="A"
+                                        icon={FlashOnIcon}
+                                        color="#a29bfe"
                                     />
                                 </Grid>
                                 <Grid item xs={6} sm={3}>
@@ -1272,8 +1319,8 @@ function App() {
                                         InputLabelProps={{ shrink: true }}
                                         fullWidth={isMobile}
                                         sx={{ flex: 1 }}
-                                        />
-                                        
+                                    />
+
                                     <Button
                                         variant="contained"
                                         onClick={handleLoadData}
@@ -1282,21 +1329,21 @@ function App() {
                                         sx={{ minWidth: 150 }}
                                     >
                                         {loading ? 'Loading...' : 'Load Data'}
-                                        </Button>
+                                    </Button>
 
-                                        <Button
-                                            variant="contained"
-                                            size="small"
-                                            onClick={exportToExcel}
-                                            disabled={exporting || filteredReadings.length === 0}
-                                            startIcon={exporting ? <CircularProgress size={16} /> : <DownloadIcon />}
-                                            sx={{
-                                                minWidth: 150,
-                                                backgroundColor: '#00b894',
-                                                '&:hover': { backgroundColor: '#00a381' }
-                                            }}>
-                                            {exporting ? 'Exporting...' : 'Export Excel'}
-                                        </Button>
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        onClick={exportToExcel}
+                                        disabled={exporting || filteredReadings.length === 0}
+                                        startIcon={exporting ? <CircularProgress size={16} /> : <DownloadIcon />}
+                                        sx={{
+                                            minWidth: 150,
+                                            backgroundColor: '#00b894',
+                                            '&:hover': { backgroundColor: '#00a381' }
+                                        }}>
+                                        {exporting ? 'Exporting...' : 'Export Excel'}
+                                    </Button>
 
                                 </Stack>
 
@@ -1335,7 +1382,7 @@ function App() {
                                             />
                                         </Grid>
                                         <Grid item xs={12} sm={6} md={2}>
-                                                <StatCard
+                                            <StatCard
                                                 title="Avg Kilo Watts (Kw)"
                                                 value={stats.avgWatts}
                                                 icon={PowerIcon}
@@ -1368,7 +1415,7 @@ function App() {
                                                 icon={SpeedIcon}
                                                 color="#67ff42"
                                                 subtitle={`In Minutes: ${stats.totalMinutes ? stats.totalMinutes.toFixed(2) : '0.00'}`}
-                                                />
+                                            />
                                         </Grid>
                                     </Grid>
 
@@ -1488,17 +1535,17 @@ function App() {
                                                                 <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#74b9ff' }}>
                                                                     Voltage Avg
                                                                 </Typography>
-                                                                    <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                                                                <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
                                                                     (V)
                                                                 </Typography>
                                                             </Stack>
                                                         </TableCell>
-                                                            <TableCell align="center">
+                                                        <TableCell align="center">
                                                             <Stack direction="column" alignItems="flex-end" spacing={0}>
                                                                 <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#a29bfe' }}>
                                                                     Current Total
                                                                 </Typography>
-                                                                    <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                                                                <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
                                                                     (A)
                                                                 </Typography>
                                                             </Stack>
@@ -1508,7 +1555,7 @@ function App() {
                                                                 <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#a29bfe' }}>
                                                                     Current R
                                                                 </Typography>
-                                                                    <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                                                                <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
                                                                     (A)
                                                                 </Typography>
                                                             </Stack>
@@ -1518,7 +1565,7 @@ function App() {
                                                                 <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#a29bfe' }}>
                                                                     Current Y
                                                                 </Typography>
-                                                                    <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                                                                <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
                                                                     (A)
                                                                 </Typography>
                                                             </Stack>
@@ -1528,7 +1575,7 @@ function App() {
                                                                 <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#a29bfe' }}>
                                                                     Current B
                                                                 </Typography>
-                                                                    <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                                                                <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
                                                                     (A)
                                                                 </Typography>
                                                             </Stack>
@@ -1538,7 +1585,7 @@ function App() {
                                                                 <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#ff4267' }}>
                                                                     Kilo Watts
                                                                 </Typography>
-                                                                    <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                                                                <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
                                                                     (kW)
                                                                 </Typography>
                                                             </Stack>
@@ -1548,24 +1595,24 @@ function App() {
                                                                 <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#fdcb6e' }}>
                                                                     Frequency
                                                                 </Typography>
-                                                                    <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                                                                <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
                                                                     (Hz)
                                                                 </Typography>
                                                             </Stack>
                                                         </TableCell>
                                                         <TableCell align="right">
                                                             <Stack direction="column" alignItems="flex-end" spacing={0}>
-                                                                <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#00b894' , fontWeight : 'bold' }}>
+                                                                <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#00b894', fontWeight: 'bold' }}>
                                                                     Power Factor
                                                                 </Typography>
-                                                                    <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                                                                <Typography variant="caption" sx={{ color: '#ffffff', fontSize: '0.6rem', fontWeight: 'bold' }}>
                                                                     (PF)
                                                                 </Typography>
                                                             </Stack>
                                                         </TableCell>
                                                         <TableCell align="right">
                                                             <Stack direction="column" alignItems="flex-end" spacing={0}>
-                                                                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#67ff42' }}>
+                                                                <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#67ff42' }}>
                                                                     Machine Status
                                                                 </Typography>
                                                             </Stack>
@@ -1578,9 +1625,9 @@ function App() {
                                                         const timestamp = reading["timestamp "] || reading.timestamp;
                                                         const actualIndex = page * rowsPerPage + index + 1;
                                                         const current = parseFloat(getValue(data, "Current_Total")) || 0;
-                                                        
+
                                                         return (
-                                                            <TableRow key={actualIndex} sx={{ 
+                                                            <TableRow key={actualIndex} sx={{
                                                                 '&:hover': { backgroundColor: 'rgba(0,184,148,0.05)' },
                                                                 backgroundColor: current > 0 ? 'rgba(0,184,148,0.02)' : 'inherit'
                                                             }}>
